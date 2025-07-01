@@ -1,0 +1,216 @@
+\import Function.Meta
+\import Meta
+\import Paths.Meta
+-- made by: Олег Беляев
+
+-- Заметка : в паре мест idea пишет о лишних скобках ("Redundant parentheses") и предлагает раскрыть их
+-- если раскрыть эти скобки то все перестанет работать, поэтому очевидно эти скобки не лишние.
+
+\class HurkensRules {
+  -- Large universe
+
+  | U1 : \Type
+  | El1 : U1 -> \Type
+
+  --  Closure by small product
+
+  | Forall1 (u : U1) : (El1 u -> U1) -> U1
+  | Lam1 (A : U1) (B : El1 A -> U1) (P : \Pi (x : El1 A) -> El1 (B x)) : El1 (Forall1 A B)
+  | app1 (A : U1) (B : El1 A -> U1) (f : El1 (Forall1 A B)) (x : El1 A) : El1 (B x)
+
+  -- Closure by large products
+
+  | ForallU1 : (U1 -> U1) -> U1
+  | LamU1 (F : U1 -> U1) : (\Pi (A : U1) -> El1 (F A)) -> El1 (ForallU1 F)
+  | appU1 (F : U1 -> U1) (f : El1 (ForallU1 F)) (A : U1) : El1 (F A)
+
+  -- Small universe
+  -- The small universe is an element of the large one
+
+  | u0 : U1
+  | El0 : El1 u0 -> \Type
+  | Forall0 : \Pi (u : El1 u0) -> (El0 u -> El1 u0) -> El1 u0
+  | Lam0 (u : El1 u0) (B : El0 u -> El1 u0) : (\Pi (x : El0 u) -> El0 (B x)) -> El0 (Forall0 u B)
+  | app0 (u : El1 u0) (B : El0 u -> El1 u0) (f : El0 (Forall0 u B)) (x : El0 u) : El0 (B x)
+
+  -- Closure by large products
+
+  | ForallU0 : \Pi (u : U1) -> (El1 u -> El1 u0) -> El1 u0
+  | LamU0 (U : U1) (F : El1 U -> El1 u0) :  (\Pi (A : El1 U) -> El0 (F A)) -> El0 (ForallU0 U F)
+  | appU0 (U : U1) (F : El1 U -> El1 u0) (f : El0 (ForallU0 U F)) (A : El1 U) : El0 (F A)
+
+  \func U0 => El1 u0
+
+  -- "notations"
+
+  \func \infixl 7 *1 {A : U1} {B : El1 A -> U1} => \lam f x => app1 A B f x
+
+  \func notation-forall1 (A : U1) (B : El1 A -> U1) => Forall1 A B
+
+  \func \infixr 6 ->1 => \lam A B  => Forall1 A (\lam _ => B)
+
+  \func lam1 {A : U1} {B : El1 A -> U1} => \lam u => Lam1 A B u
+
+  \func notation-forall2 => \lam F => ForallU1 F
+
+  \func lam2 {F : U1 -> U1} => \lam u => LamU1 F u
+
+  \func \infixl 7 *1-[A] {F : U1 -> U1} => appU1 F
+
+  \func notation-forall0 => \lam A B => Forall0 A B
+  --  \func "'∀₀' x : A , B" => (Forall0 A (fun x => B)) => {?}
+
+  \func \infixr 6 ->0 => \lam A B => Forall0 A (\lam  _ => B)
+  --  \func "A '⟶₀' B" => (Forall0 A (fun _ => B)) => {?}
+
+  \func lam0 {A : El1 u0} {B : El0 A -> El1 u0} => Lam0 A B
+  --  \func "'λ₀' x , u" => (lam0 _ _ (fun x => u)) => {?}
+
+  \func \infixl 7 *0 {u : El1 u0} {B : El0 u -> El1 u0} => \lam f x => app0 u B f x
+
+  \func notation-forall01 \alias ∀01 => \lam U F => ForallU0 U F
+  --  \func "'∀₀¹' A : U , F" => (ForallU0 U (fun A => F)) => {?}
+
+  \func lam01 {U : U1} {F : El1 U -> El1 u0} => \lam u => LamU0 U F u
+  --  \func "'λ₀¹' x , u" => (lamU0 _ _ (fun x => u)) => {?}
+
+  \func \infixl 7 *0-[A] {U : U1} {F : El1 U -> El1 u0} => \lam f A => appU0 U F f A
+  --  \func "f '·₀' [ A ]" => (appU0 _ _ f A) => {?}
+}
+
+\class HurkensParadox \extends HurkensRules {
+  | beta1 {u : U1} {B : El1 u -> U1} (f : \Pi (x1 : El1 u) -> El1 (B x1)) (x : El1 u)
+  : lam1 f  *1 x = f x
+
+  | betaU1 (F : U1 -> U1) (f : \Pi (A : U1) -> El1 (F A)) (A : U1)
+  : lam2 f  *1-[A] A = f A
+
+  | F : U0
+
+-- Preliminary definitions
+
+  \func V : U1 => notation-forall2 (\lam A => ((A ->1 u0) ->1 A ->1 u0) ->1 A ->1 u0 )
+
+  \func U : U1 => V ->1 u0
+
+  \func sb (z : El1 V) : El1 V =>
+    lam2 $
+    \lam A => lam1 $
+    \lam r => lam1 $
+    \lam a => (r *1 ((z `*1-[A]` A) *1 r)) *1 a
+
+  \func le (i : El1 (U ->1 u0)) (x : El1 U) : U0 =>
+    x *1 lam2 (\lam A => lam1 $ \lam r => lam1 $ \lam a => i *1 lam1 ( \lam v => ((sb v `*1-[A]` A) *1 r) *1 a))
+
+  \func le' : El1 ((U ->1 u0) ->1 U ->1 u0) => lam1 \lam i => lam1 \lam x => le i x
+
+  \func induct (i : El1 (U ->1 u0)) : U0 => ∀01 U \lam x => le i x ->0 i *1 x
+
+  \func WF : El1 U => lam1 \lam z => induct ((z `*1-[A]` U) *1 le')
+
+  \func I (x : El1 U) : U0 =>
+    ( ∀01 (U ->1 u0) \lam i => le i x ->0 (i *1 (lam1 \lam v => ((sb v `*1-[A]` U) *1 le' ) *1 x)) ) ->0 F
+
+-- Proof
+
+  \func Omega : El0 (∀01 (U ->1 u0) \lam i => induct i ->0 (i *1 WF)) =>
+    lam01 \lam i =>
+        lam0 \lam y =>
+            (y *0-[A] _) *0
+            (unfold (WF, le, induct) $
+            rewrite beta1 $
+            rewrite betaU1 $
+            rewrite beta1 $
+            lam01 \lam x =>
+                unfold le $
+                lam0 \lam h0 =>
+                    rewrite (beta1 (\lam a => *1 i (lam1 (\lam v => *1 (*1 (*1-[A] (sb v) U) le') a))) x) $
+                    (y *0-[A] _) *0 (
+                                      unfold le $
+                                      rewrite beta1 $
+                                      rewrite betaU1 $
+                                      rewrite beta1 $
+                                      rewrite beta1 $
+                                      rewrite beta1 $
+                                      rewrite beta1 $
+                                      rewrite betaU1 $
+                                      rewrite beta1 $
+                                      h0))
+
+  -- Помощники в переводе Coq-овских такик generilize и unfold in
+
+  \func generilize {A B : \Type} (b : B) (hole : B -> A) : A => hole b
+
+  \func rewrite_used {B A : \Type} (b : B) (p : A = B) : A => rewrite p b
+
+  \func lemma1 : El0 (induct (lam1 \lam u => I u)) =>
+    unfold induct $
+    lam01 $
+    \lam x =>
+        lam0 \lam p
+        => rewrite (beta1 I x) $
+            lam0 $
+            \lam q =>
+                \let h : El0 (I (lam1 \lam v => ((sb v *1-[A] U) *1 le') *1 x)) =>
+                  \let | inserty => (q *0-[A] lam1 \lam u => I u) *0 p
+                  \in
+                    generilize inserty $
+                    rewrite (beta1 I (lam1 (\lam v => *1 (*1 (*1-[A] (sb v) U) le') x)) ) $
+                    (\lam e => e)
+                \in
+                  h *0 lam01 (\lam i => lam0 (\lam h' =>
+                      generilize (q *0-[A] lam1 (\lam y => i *1 lam1 \lam v => ((sb v *1-[A] U) *1 le') *1 y)) $
+                      lemma1-lemma i x h'
+                  ))
+
+  \func lemma1-lemma {_ : HurkensRules}
+                     (i : El1 (Forall1 (Forall1 V (\lam (_ : El1 V) => u0)) (\lam (_ : El1 U) => u0)))
+                     (x : El1 U)
+                     (h' : El0 (app1 V (\lam _ => u0) (lam1 (\lam v => sb v *1-[A] U *1 le' *1 x))
+                         (lam2 (\lam A => lam1 (\lam r => lam1 (\lam a => i *1 lam1 (\lam v => sb v *1-[A] A *1 r *1 a)))))))
+    :
+    El0 (le (lam1 (\lam y => i *1 lam1 (\lam v => sb v *1-[A] U *1 le' *1 y))) x ->0 lam1 (\lam y => i *1 lam1 (\lam v => sb v *1-[A] U *1 le' *1 y)) *1 lam1 (\lam v => sb v *1-[A] U *1 le' *1 x)) ->
+    El0 (i *1 lam1 (\lam v => sb v *1-[A] U *1 le' *1 lam1 (\lam v => sb v *1-[A] U *1 le' *1 x))) =>
+    rewrite beta1 $
+    \lam q' => q' *0 rewrite_used h' (
+      rewrite beta1 $
+      unfold sb $
+      rewrite {2} betaU1 $
+      rewrite beta1 $
+      rewrite beta1 $
+      rewrite beta1 $
+      rewrite beta1 $
+      rewrite {2} betaU1 $
+      rewrite beta1 $
+      idp
+    )
+
+  \func lemma2 : El0 (∀01 (U ->1 u0) (\lam i => induct i ->0 (i *1 WF)) ->0 F) =>
+    lam0 \lam x =>
+        \let h : El0 (I WF) =>
+          generilize (x *0-[A] (lam1 \lam u => I u) *0 lemma1) $
+          rewrite beta1 $
+          (\lam e => e)
+        \in
+          h *0 lam01 (\lam i => lam0 (\lam h0 =>
+              generilize (x *0-[A] lam1 (\lam y => i *1 lam1 \lam v => ((sb v *1-[A] U) *1 le') *1 y)) $
+              lemma2-lemma i h0))
+    \where {
+      \func lemma2-lemma {_ : HurkensParadox}
+                         (i : El1 (Forall1 (Forall1 V (\lam (_ : El1 V) => u0)) (\lam (_ : El1 U) => u0)))
+                         (h0 : El0 (app1 V (\lam _ => u0) WF (lam2 (\lam A => lam1 (\lam r => lam1 (\lam a => i *1 lam1 (\lam v => sb v *1-[A] A *1 r *1 a)))))))
+        :
+        El0 (induct (lam1 (\lam y => i *1 lam1 (\lam v => sb v *1-[A] U *1 le' *1 y))) ->0 lam1 (\lam y => i *1 lam1 (\lam v => sb v *1-[A] U *1 le' *1 y)) *1 WF) ->
+        El0 (i *1 lam1 (\lam v => sb v *1-[A] U *1 le' *1 WF)) =>
+        rewrite beta1 $
+        \lam q => q *0
+        (rewrite_used h0 $
+        unfold WF $
+        rewrite beta1 $
+        rewrite {2} betaU1 $
+        rewrite beta1 $
+        idp)
+    }
+
+  \func paradox : El0 F => lemma2 *0 Omega
+}

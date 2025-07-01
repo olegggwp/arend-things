@@ -1,0 +1,151 @@
+\import Paths.Meta
+\import plgr
+
+----- БИЕКЦИЯ
+-- isBij это Prop
+
+-- определение и "получение" единственности обратной функции взято здесь: https://ncatlab.org/nlab/show/bijection
+\func bijection-rules {A B : \Set} (f : A -> B) (f^-1 : B -> A) =>
+  \Pi (b : B) ->
+      \Sigma
+        (f (f^-1 b) = b)
+        (\Pi (a : A) -> f a = b -> a = f^-1 b)
+
+\data isBij {A B : \Set} (f : A -> B)
+  | bigproof (f^-1 : B -> A)
+             (prf : bijection-rules f f^-1)
+  \where {
+    \use \level isProp {A B : \Set} (f : A -> B)
+                       (aIN bIN : isBij f)
+      : aIN = bIN \elim aIN , bIN
+      | bigproof g1 prf1, bigproof g2 prf2 =>
+        \let
+          | p1 : \Sigma (g : B -> A) (bijection-rules f g) => (g1, prf1)
+          | p2 : \Sigma (g : B -> A) (bijection-rules f g) => (g2, prf2)
+          | g1g2AreSame (b : B) : g1 b = g2 b =>
+            \let
+              | a => g1 b
+              | step2 : f a = b => (prf1 b).1
+              | step3 : a = g1 b => idp
+              | step4 : a = g2 b => (prf2 b).2 a step2
+              | step7 : g1 b = g2 b => rewriteI step3 step4
+            \in step7
+          | fEquality : g1 = g2 => ext g1g2AreSame
+          | root : p1 = p2 => ext fEquality
+          | renamed : bigproof p1.1 p1.2 = bigproof p2.1 p2.2 => rewrite root idp
+        \in
+          renamed
+  }
+
+\import Algebra.Group
+\import Function.Meta
+\import Paths
+\import Paths.Meta
+
+\func eq-symmetric {A : \Type} {a a' : A} (p : a = a') : a' = a \elim p | idp => idp
+
+-- Определяю перестановку как биективную функцию, которая "указывает" элементам их новые места
+\data Perm (n : Nat)
+  | perm (f : Fin n -> Fin n) (prf : isBij f)
+
+\func permIsGroup (n : Nat) : Group $ Perm n => \new Group {
+  | ide => idPerm
+  | * => perm*
+  | ide-left => eq-permf perm*=comp
+  | ide-right => eq-permf perm*=comp
+  | *-assoc {x y z : Perm n} => permIsGruop-lemma x y z
+  | inverse => permInv
+  | inverse-left {x : Perm n} => permIsGruop-invwerse-lemma-cool (permInvWithProof x).3
+  | inverse-right {x : Perm n} => permIsGruop-invwerse-lemma-cool $ eq-symmetric (permInvWithProof x).2
+} \where {
+  \func idn {n : Nat} (a : Fin n) => a
+
+  \func idisid {n : Nat} (a b : Fin n) (x : idn a = b) : a = b => rewrite idp x
+
+  \func idPerm {n : Nat} : Perm n => perm idn (bigproof idn (\lam b => (idp, \lam a p => rewrite (idisid a b p) idp)))
+
+  \func comp {A : \Type} (f g : A -> A) : A -> A => \lam x => f $ g x
+
+  \func getf {n : Nat} (pp : Perm n) : Fin n -> Fin n => \case pp \with {
+    | perm f i => f
+  }
+
+  \func getf^-1 {n : Nat} (pp : Perm n) : Fin n -> Fin n => \case pp \with {
+    | perm f (bigproof f^-1 prf) => f^-1
+  }
+
+  \func getrules {n : Nat} (pp : Perm n) : bijection-rules (getf pp) (getf^-1 pp) \elim pp
+    | perm f (bigproof f^-1 prf) => prf
+
+  \func perm* {n : Nat} (p1 p2 : Perm n) : Perm n => (perm*withProofs p1 p2).1
+
+  \func perm*withProofs {n : Nat} (p1 p2 : Perm n) : \Sigma (res : Perm n) (getf res = comp (getf p2) (getf p1))
+  \elim p1, p2
+    | perm f1 (bigproof g1 prf1), perm f2 (bigproof g2 prf2)
+    => (perm (comp f2 f1) (bigproof (\lam c => g1 $ g2 c)
+          (\lam b =>
+              \let
+                | name1 : f2 (f1 (g1 (g2 b))) = f2 (g2 b) =>
+                  transportInv (\lam x0 => f2 x0 = f2 (g2 b)) (prf1 (g2 b)).1 idp
+              \in
+                (transportInv (\lam x0 => x0 = b) name1 (prf2 b).1 ,
+                 \lam a p => (prf1 $ g2 b).2 a ((prf2 b).2 (f1 a) p))
+          )), idp)
+
+  \func f=getf {n : Nat} (f : Fin n -> Fin n) {rls : isBij f} : getf (perm f rls) = f => idp
+
+  \func perm*=comp {n : Nat} {p1 p2 : Perm n} :
+    getf (perm* p1 p2) = comp (getf p2) (getf p1) => (perm*withProofs p1 p2).2
+
+  -- доказательство как здесь
+  -- https://neerc.ifmo.ru/wiki/index.php?title=%D0%A3%D0%BC%D0%BD%D0%BE%D0%B6%D0%B5%D0%BD%D0%B8%D0%B5_%D0%BF%D0%B5%D1%80%D0%B5%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BE%D0%BA,_%D0%BE%D0%B1%D1%80%D0%B0%D1%82%D0%BD%D0%B0%D1%8F_%D0%BF%D0%B5%D1%80%D0%B5%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0,_%D0%B3%D1%80%D1%83%D0%BF%D0%BF%D0%B0_%D0%BF%D0%B5%D1%80%D0%B5%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BE%D0%BA
+
+  \func permIsGruop-lemma {n : Nat} (a b c : Perm n) : perm* (perm* a b) c = perm* a (perm* b c) =>
+    \let
+      | name4 : getf (perm* a (perm* b c)) = comp (getf (perm* b c)) (getf a) => perm*=comp {n} {a} {perm* b c}
+      | name5 : getf (perm* b c) = comp (getf c) (getf b) => perm*=comp {n} {b} {c}
+      | name91 : getf (perm* a (perm* b c)) = comp (comp (getf c) (getf b)) (getf a)  => rewriteI name5 name4
+      | name10 : getf (perm* (perm* a b) c) = comp (getf c) (getf (perm* a b)) => perm*=comp {n} {perm* a b} {c}
+      | name2 : getf (perm* a b) = comp (getf b) (getf a) => perm*=comp {n} {a} {b}
+      | name11 : getf (perm* (perm* a b) c) = comp (getf c) (comp (getf b) (getf a)) => rewriteI name2 name10
+      | name12 : getf (perm* (perm* a b) c) = getf (perm* a (perm* b c)) => rewrite name91 name11
+    \in
+      eq-permf name12
+
+  \func permInv {n : Nat} (p : Perm n) : Perm n => (permInvWithProof p).1
+
+  \func permInvWithProof {n : Nat} (p : Perm n) : \Sigma (res : Perm n) (getf^-1 res = getf p) (getf res = getf^-1 p)
+  \elim p
+    | perm f (bigproof f^-1 prf)
+    =>
+      (perm f^-1 (bigproof f
+          (\lam a => (eq-symmetric $ (prf $ f a).2 a idp,
+                      \lam b p =>
+                          rewrite (eq-symmetric (prf b).1) (pmap f p))))
+      ,
+       idp, idp)
+
+  \func eq-permf {n : Nat} {p1 p2 : Perm n} (w : getf p1 = getf p2) : p1 = p2
+  \elim p1 , p2
+    | perm f i, perm f1 i1 => permlemma (f, i) (f1, i1) w
+    \where {
+      \func permlemma {n : Nat} (p1 p2 : \Sigma (f : Fin n -> Fin n) (isBij f)) (w : p1.1 = p2.1) :
+        perm p1.1 p1.2 = perm p2.1 p2.2 =>
+        \let
+          | x : p1 = p2 => ext w
+        \in rewrite x idp
+    }
+
+  \func permIsGruop-invwerse-lemma-cool {n : Nat} {p1 p2 : Perm n}
+                                        (ficha : getf p2 = getf^-1 p1)
+    : perm* p2 p1 = idPerm =>
+    \let
+      | name67 : getf (perm* p2 p1) = comp (getf p1) (getf^-1 p1) =>
+        rewriteI ficha (perm*withProofs p2 p1).2
+      | name7 : \Pi (b : Fin n) -> comp (getf p1) (getf^-1 p1) b = b =>
+        \lam b => rewrite (getrules p1 b).1 idp
+      | name70 : \Pi (b : Fin n) -> (getf $ perm* p2 p1) b = b =>
+        rewrite name67 name7
+    \in
+      eq-permf (ext name70)
+}

@@ -1,0 +1,88 @@
+\import Logic
+\import Paths
+\import Paths.Meta
+\open Nat
+
+\func eq-transitive {A : \Type} {a a' a'' : A} (f : a = a') (g : a' = a'') : a = a'' =>
+  coe (\lam p => a = g @ p) f right
+
+\func eq-symmetric {A : \Type} {a a' : A} (p : a = a') : a' = a \elim p | idp => idp
+
+\data MNat (x : Nat) (p : Nat)
+  | mnat (q : Nat) (p * q = x)
+
+\data NatLessEq (a b : Nat) \with
+  | 0, m => natlesseq-zero
+  | suc m, suc n => natlesseq-next (NatLessEq m n)
+
+\data NatLess (a b : Nat)
+  | proof (NatLessEq (suc a) b)
+
+\data NormalPrime (p : Nat)
+  | normalIsPrime (\Pi (a : Nat) -> NatLess a p -> MNat p a -> Empty)
+
+-- задача : для любых двух простых чисел, больших 2, их сумма не является простым числом
+\func twoprime (a b : Nat)
+               (aprime : NormalPrime a)
+               (bprime : NormalPrime b)
+               (a>2 : NatLess 2 a)
+               (b>2 : NatLess 2 b)
+  : NormalPrime (a + b) -> Empty => \lam np =>
+    \case np \with {
+      |  normalIsPrime proofnp =>
+        \let
+          | aodd  => prime>2isOdd a aprime a>2
+          | bodd  => prime>2isOdd b bprime b>2
+        \in
+          proofnp 2 (natless2a+b {a} {b} a>2 b>2) (mnat (aodd.1 + bodd.1 + 1) (eq-symmetric (negation-lemma aodd bodd)))
+    }
+  \where {
+    \func natless2a+b {a b : Nat}
+                      (a>2 : NatLess 2 a)
+                      (b>2 : NatLess 2 b) : NatLess 2 (a + b)
+    \elim a>2, b>2 | proof p1, proof p2 => proof (natlesseqa+b 3 a b p1)
+
+    \func natlesseqa+b (c a b : Nat) (c<=a : NatLessEq c a) : NatLessEq c (a + b)
+    \elim b
+      | 0 => c<=a
+      | suc b1 => sucNatlessEq c (a + b1) (natlesseqa+b c a b1 c<=a)
+
+    \func sucNatlessEq (c m : Nat) (c<=m : NatLessEq c m) : NatLessEq c (suc m)
+    \elim c, m, c<=m
+      | 0, m, natlesseq-zero => natlesseq-zero
+      | suc c, suc m, natlesseq-next prf => natlesseq-next (sucNatlessEq c m prf)
+
+    \func negation-lemma {a b : Nat}
+                         (_a : \Sigma (k : Nat) (a = suc (2 * k)))
+                         (_b : \Sigma (k : Nat) (b = suc (2 * k)))
+      : (a + b) = suc (suc (2 * (_a.1 + _b.1))) \elim _a , _b
+      | (k1 : Nat , p1), (k2 : Nat , p2) =>
+        \let
+          | goal63 : a + b = suc (suc (2 * k1 + 2 * k2)) => rewrite (p1, p2) idp
+          | l3 : (2 * k1 + 2 * k2 + 2) = (2 * (k1 + k2 + 1)) => pmap (\lam x => suc (suc x)) (l2 k1 k2)
+        \in
+          eq-transitive goal63 l3
+      \where {
+        \func l2 (k1 k2 : Nat) : (2 * k1 + 2 * k2) = (2 * (k1 + k2)) \elim k2
+          | 0 => idp
+          | suc k2 => pmap (\lam x => x + 2) (l2 k1 k2)
+      }
+
+    \func prime>2isOdd (p : Nat) (pisprime : NormalPrime p) (p>2 : NatLess 2 p) : \Sigma (k : Nat) (p = 2 * k + 1) =>
+      \case dsip2 p, pisprime \with {
+        | (even _x) , (normalIsPrime prf) => absurd (prf 2 p>2 (mnat _x.1 (eq-symmetric _x.2)))
+        | (odd _x) , _ => _x
+      } \where {
+      \data Disp2 (x : Nat)
+        | even (\Sigma (k : Nat) (x = 2 * k))
+        | odd (\Sigma (k : Nat) (x = 2 * k + 1))
+
+      \func dsip2 (x : Nat) : Disp2 x \elim x
+        | 0 => even (0, idp)
+        | suc 0 => odd (0, idp)
+        | suc (suc x) => \case dsip2 x \with {
+          | even _x => even (suc _x.1, pmap (\lam x => suc (suc x)) _x.2)
+          | odd _x => odd (suc _x.1, pmap (\lam x => suc (suc x)) _x.2)
+        }
+    }
+  }
